@@ -7,12 +7,12 @@ import com.example.whereismymoney.data.model.CaptureCandidate
 import com.example.whereismymoney.data.model.CaptureMode
 import com.example.whereismymoney.data.model.CaptureSettings
 import com.example.whereismymoney.data.model.ExpenseCategory
+import com.example.whereismymoney.data.model.LedgerSnapshot
 import com.example.whereismymoney.data.model.MonthlyCategorySummary
 import com.example.whereismymoney.data.model.MonthlyInsight
 import com.example.whereismymoney.data.model.RecordRuleAction
 import java.math.BigDecimal
 import java.math.RoundingMode
-import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.YearMonth
 import java.util.UUID
@@ -28,7 +28,11 @@ class InMemoryLedgerRepository(
             candidate.merchant.contains(rule.matcher, ignoreCase = true) ||
                 candidate.rawText.contains(rule.matcher, ignoreCase = true)
         }
-        return hit?.action ?: if (settings.reviewUnknownBills) RecordRuleAction.ASK_EVERY_TIME else RecordRuleAction.ALWAYS_RECORD
+        return hit?.action ?: if (settings.reviewUnknownBills) {
+            RecordRuleAction.ASK_EVERY_TIME
+        } else {
+            RecordRuleAction.ALWAYS_RECORD
+        }
     }
 
     fun classify(candidate: CaptureCandidate): BillRecord {
@@ -41,19 +45,34 @@ class InMemoryLedgerRepository(
             occurredAt = candidate.detectedAt,
             source = candidate.source,
             categoryId = result.categoryId,
-            autoCaptured = true,
+            autoCaptured = candidate.source != CaptureMode.MANUAL,
             needsReview = result.confidence < 0.7f,
             rawText = candidate.rawText
         )
     }
 
+    fun addManualRecord(title: String, merchant: String, amount: BigDecimal, categoryId: String?): BillRecord {
+        return BillRecord(
+            id = UUID.randomUUID().toString(),
+            title = title,
+            amount = amount,
+            merchant = merchant,
+            occurredAt = LocalDateTime.now(),
+            source = CaptureMode.MANUAL,
+            categoryId = categoryId,
+            autoCaptured = false,
+            needsReview = false,
+            rawText = "$merchant $title $amount"
+        )
+    }
+
     fun monthlySummary(month: YearMonth): List<MonthlyCategorySummary> {
         val monthRecords = records.filter { YearMonth.from(it.occurredAt) == month }
-        val total = monthRecords.fold(BigDecimal.ZERO, BigDecimal::addAmount)
+        val total = monthRecords.fold(BigDecimal.ZERO) { acc, record -> acc + record.amount }
         return monthRecords
             .groupBy { it.categoryId ?: "other" }
             .map { (categoryId, grouped) ->
-                val amount = grouped.fold(BigDecimal.ZERO, BigDecimal::addAmount)
+                val amount = grouped.fold(BigDecimal.ZERO) { acc, record -> acc + record.amount }
                 MonthlyCategorySummary(
                     month = month,
                     categoryName = categories.firstOrNull { it.id == categoryId }?.name ?: "其他",
@@ -69,10 +88,10 @@ class InMemoryLedgerRepository(
     fun monthlyInsight(month: YearMonth): MonthlyInsight {
         val monthRecords = records.filter { YearMonth.from(it.occurredAt) == month }
         val topCategory = monthlySummary(month).firstOrNull()?.categoryName ?: "暂无数据"
-        val total = monthRecords.fold(BigDecimal.ZERO, BigDecimal::addAmount)
+        val total = monthRecords.fold(BigDecimal.ZERO) { acc, record -> acc + record.amount }
         val biggestExpenseDay = monthRecords
             .groupBy { it.occurredAt.toLocalDate() }
-            .maxByOrNull { (_, values) -> values.fold(BigDecimal.ZERO, BigDecimal::addAmount) }
+            .maxByOrNull { (_, values) -> values.fold(BigDecimal.ZERO) { acc, record -> acc + record.amount } }
             ?.key ?: month.atDay(1)
         return MonthlyInsight(
             month = month,
@@ -83,12 +102,24 @@ class InMemoryLedgerRepository(
         )
     }
 
+    fun toSnapshot(): LedgerSnapshot = LedgerSnapshot(categories, rules, records, settings)
+
     companion object {
-        fun demo(): InMemoryLedgerRepository {
+        fun fromSnapshot(snapshot: LedgerSnapshot): InMemoryLedgerRepository {
+            return InMemoryLedgerRepository(
+                categories = snapshot.categories,
+                rules = snapshot.rules,
+                records = snapshot.records,
+                settings = snapshot.settings
+            )
+        }
+
+        fun demo(): LedgerSnapshot {
             val categories = listOf(
                 ExpenseCategory("food", "餐饮"),
                 ExpenseCategory("transport", "交通"),
                 ExpenseCategory("groceries", "日用杂货"),
+                ExpenseCategory("housing", "居住"),
                 ExpenseCategory("other", "其他")
             )
             val rules = listOf(
@@ -110,9 +141,7 @@ class InMemoryLedgerRepository(
                 aiApiKeyPlaceholder = "Paste-your-secret-here",
                 reviewUnknownBills = true
             )
-            return InMemoryLedgerRepository(categories, rules, records, settings)
+            return LedgerSnapshot(categories, rules, records, settings)
         }
-
-        private fun BigDecimal.addAmount(record: BillRecord): BigDecimal = add(record.amount)
     }
 }

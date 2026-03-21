@@ -76,3 +76,10 @@ data class MonthlyInsight(
     val biggestExpenseDay: LocalDate,
     val suggestion: String
 )
+
+data class LedgerSnapshot(
+    val categories: List<ExpenseCategory>,
+    val rules: List<BillingRule>,
+    val records: List<BillRecord>,
+    val settings: CaptureSettings
+)

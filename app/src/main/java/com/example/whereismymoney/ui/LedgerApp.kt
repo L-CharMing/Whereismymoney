@@ -11,10 +11,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import com.example.whereismymoney.data.repository.InMemoryLedgerRepository
 import com.example.whereismymoney.ui.screens.CaptureScreen
 import com.example.whereismymoney.ui.screens.OverviewScreen
 import com.example.whereismymoney.ui.screens.RulesScreen
+import com.example.whereismymoney.ui.state.LedgerViewModel
 
 private enum class LedgerTab(val title: String) {
     OVERVIEW("总览"),
@@ -23,8 +23,9 @@ private enum class LedgerTab(val title: String) {
 }
 
 @Composable
-fun LedgerApp(repository: InMemoryLedgerRepository) {
+fun LedgerApp(viewModel: LedgerViewModel) {
     var currentTab by remember { mutableStateOf(LedgerTab.OVERVIEW) }
+    val state = viewModel.uiState
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
@@ -41,9 +42,9 @@ fun LedgerApp(repository: InMemoryLedgerRepository) {
         }
     ) { paddingValues ->
         when (currentTab) {
-            LedgerTab.OVERVIEW -> OverviewScreen(repository, paddingValues)
-            LedgerTab.CAPTURE -> CaptureScreen(repository, paddingValues)
-            LedgerTab.RULES -> RulesScreen(repository, paddingValues)
+            LedgerTab.OVERVIEW -> OverviewScreen(state, paddingValues, viewModel)
+            LedgerTab.CAPTURE -> CaptureScreen(state, paddingValues, viewModel)
+            LedgerTab.RULES -> RulesScreen(state, paddingValues, viewModel)
         }
     }
 }
