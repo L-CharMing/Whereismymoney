@@ -57,7 +57,9 @@ data class CaptureSettings(
     val enableNotificationMirror: Boolean,
     val aiEndpoint: String,
     val aiApiKeyPlaceholder: String,
-    val reviewUnknownBills: Boolean
+    val reviewUnknownBills: Boolean,
+    val allowedPackageNames: List<String>,
+    val dedupeWindowMinutes: Int
 )
 
 data class CaptureCandidate(

@@ -85,6 +85,8 @@ class JsonLedgerStorage(private val context: Context) {
                     .put("aiEndpoint", snapshot.settings.aiEndpoint)
                     .put("aiApiKeyPlaceholder", snapshot.settings.aiApiKeyPlaceholder)
                     .put("reviewUnknownBills", snapshot.settings.reviewUnknownBills)
+                    .put("allowedPackageNames", JSONArray(snapshot.settings.allowedPackageNames))
+                    .put("dedupeWindowMinutes", snapshot.settings.dedupeWindowMinutes)
             )
     }
 
@@ -128,7 +130,10 @@ class JsonLedgerStorage(private val context: Context) {
             enableNotificationMirror = settingsJson.optBoolean("enableNotificationMirror", true),
             aiEndpoint = settingsJson.optString("aiEndpoint"),
             aiApiKeyPlaceholder = settingsJson.optString("aiApiKeyPlaceholder"),
-            reviewUnknownBills = settingsJson.optBoolean("reviewUnknownBills", true)
+            reviewUnknownBills = settingsJson.optBoolean("reviewUnknownBills", true),
+            allowedPackageNames = settingsJson.optJSONArray("allowedPackageNames")?.toStringList()
+                ?: listOf("com.tencent.mm", "com.eg.android.AlipayGphone"),
+            dedupeWindowMinutes = settingsJson.optInt("dedupeWindowMinutes", 2)
         )
         return LedgerSnapshot(categories, rules, records, settings)
     }
@@ -137,6 +142,14 @@ class JsonLedgerStorage(private val context: Context) {
         return buildList {
             for (index in 0 until length()) {
                 add(mapper(getJSONObject(index)))
+            }
+        }
+    }
+
+    private fun JSONArray.toStringList(): List<String> {
+        return buildList {
+            for (index in 0 until length()) {
+                add(getString(index))
             }
         }
     }

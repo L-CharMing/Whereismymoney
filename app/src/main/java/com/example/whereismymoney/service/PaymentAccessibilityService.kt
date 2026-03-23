@@ -4,20 +4,23 @@ import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.example.whereismymoney.capture.PaymentCaptureManager
+import com.example.whereismymoney.data.repository.InMemoryLedgerRepository
 
 class PaymentAccessibilityService : AccessibilityService() {
     private val captureManager = PaymentCaptureManager()
+    private val demoSettings = InMemoryLedgerRepository.demo().settings
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val packageName = event?.packageName?.toString() ?: return
         val root = rootInActiveWindow ?: return
         val visibleTexts = mutableListOf<String>()
         collectTexts(root, visibleTexts)
-        captureManager.parseAccessibilityPayload(packageName, visibleTexts)
+        captureManager.parseAccessibilityPayload(packageName, visibleTexts, demoSettings)
         // 下一步：
-        // 1. 把 candidate 发送到 repository / view model 持久化层
-        // 2. 做去重（金额 + 时间窗口 + 商户）
-        // 3. 若命中 ASK_EVERY_TIME，则弹出本地确认 UI
+        // 1. 读取真实本地 settings，而不是 demoSettings
+        // 2. 把 candidate 发送到 repository / view model 持久化层
+        // 3. 做白名单校验后的去重（金额 + 时间窗口 + 商户）
+        // 4. 若命中 ASK_EVERY_TIME，则弹出本地确认 UI
     }
 
     override fun onInterrupt() = Unit

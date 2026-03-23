@@ -17,6 +17,7 @@ import com.example.whereismymoney.data.model.MonthlyCategorySummary
 import com.example.whereismymoney.data.model.RecordRuleAction
 import com.example.whereismymoney.data.repository.InMemoryLedgerRepository
 import java.math.BigDecimal
+import java.time.YearMonth
 import java.util.UUID
 
 class LedgerViewModel(application: Application) : AndroidViewModel(application) {
@@ -40,12 +41,17 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
             amount = amount,
             categoryId = categoryId
         )
-        persist(currentSnapshot().copy(records = listOf(record) + uiState.records))
+        persist(currentSnapshot().copy(records = listOf(record) + uiState.allRecords))
     }
 
     fun updateRecord(recordId: String, title: String, merchant: String, amountInput: String, categoryId: String?) {
         val amount = amountInput.toBigDecimalOrNull() ?: return
         val updatedRecords = currentRepository().updateRecord(recordId, title, merchant, amount, categoryId)
+        persist(currentSnapshot().copy(records = updatedRecords))
+    }
+
+    fun deleteRecord(recordId: String) {
+        val updatedRecords = currentRepository().deleteRecord(recordId)
         persist(currentSnapshot().copy(records = updatedRecords))
     }
 
@@ -62,6 +68,7 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun importCandidate(candidate: CaptureCandidate) {
+        if (captureManager.isDuplicate(candidate, uiState.allRecords, uiState.settings)) return
         val repository = currentRepository()
         val action = repository.shouldRecord(candidate)
         when (action) {
@@ -69,7 +76,7 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
             RecordRuleAction.ASK_EVERY_TIME,
             RecordRuleAction.ALWAYS_RECORD -> {
                 val record = repository.classify(candidate)
-                persist(currentSnapshot().copy(records = listOf(record) + uiState.records))
+                persist(currentSnapshot().copy(records = listOf(record) + uiState.allRecords))
             }
         }
     }
@@ -78,9 +85,21 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
         persist(currentSnapshot().copy(settings = transform(uiState.settings)))
     }
 
+    fun updateSearchQuery(query: String) {
+        uiState = currentSnapshot().toUiState(captureManager.buildWirelessAdbHints(), selectedMonth = uiState.selectedMonth, searchQuery = query)
+    }
+
+    fun selectPreviousMonth() {
+        uiState = currentSnapshot().toUiState(captureManager.buildWirelessAdbHints(), selectedMonth = uiState.selectedMonth.minusMonths(1), searchQuery = uiState.searchQuery)
+    }
+
+    fun selectNextMonth() {
+        uiState = currentSnapshot().toUiState(captureManager.buildWirelessAdbHints(), selectedMonth = uiState.selectedMonth.plusMonths(1), searchQuery = uiState.searchQuery)
+    }
+
     private fun persist(snapshot: LedgerSnapshot) {
         storage.save(snapshot)
-        uiState = snapshot.toUiState(captureManager.buildWirelessAdbHints())
+        uiState = snapshot.toUiState(captureManager.buildWirelessAdbHints(), selectedMonth = uiState.selectedMonth, searchQuery = uiState.searchQuery)
     }
 
     private fun currentRepository(): InMemoryLedgerRepository = InMemoryLedgerRepository.fromSnapshot(currentSnapshot())
@@ -88,7 +107,7 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
     private fun currentSnapshot(): LedgerSnapshot = LedgerSnapshot(
         categories = uiState.categories,
         rules = uiState.rules,
-        records = uiState.records,
+        records = uiState.allRecords,
         settings = uiState.settings
     )
 }
@@ -96,15 +115,20 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
 data class LedgerUiState(
     val categories: List<ExpenseCategory> = emptyList(),
     val rules: List<BillingRule> = emptyList(),
-    val records: List<BillRecord> = emptyList(),
+    val allRecords: List<BillRecord> = emptyList(),
+    val filteredRecords: List<BillRecord> = emptyList(),
     val settings: CaptureSettings = CaptureSettings(
         useAccessibilityService = true,
         useAdbBridge = false,
         enableNotificationMirror = true,
         aiEndpoint = "",
         aiApiKeyPlaceholder = "",
-        reviewUnknownBills = true
+        reviewUnknownBills = true,
+        allowedPackageNames = listOf("com.tencent.mm", "com.eg.android.AlipayGphone"),
+        dedupeWindowMinutes = 2
     ),
+    val selectedMonth: YearMonth = YearMonth.now(),
+    val searchQuery: String = "",
     val thisMonthTotal: BigDecimal = BigDecimal.ZERO,
     val thisMonthTopCategory: String = "暂无数据",
     val thisMonthSuggestions: String = "",
@@ -112,19 +136,25 @@ data class LedgerUiState(
     val wirelessAdbHints: List<String> = emptyList()
 )
 
-private fun LedgerSnapshot.toUiState(wirelessAdbHints: List<String>): LedgerUiState {
+private fun LedgerSnapshot.toUiState(
+    wirelessAdbHints: List<String>,
+    selectedMonth: YearMonth = YearMonth.now(),
+    searchQuery: String = ""
+): LedgerUiState {
     val repository = InMemoryLedgerRepository.fromSnapshot(this)
-    val month = java.time.YearMonth.now()
-    val insight = repository.monthlyInsight(month)
+    val insight = repository.monthlyInsight(selectedMonth)
     return LedgerUiState(
         categories = categories,
         rules = rules,
-        records = records.sortedByDescending { it.occurredAt },
+        allRecords = records.sortedByDescending { it.occurredAt },
+        filteredRecords = repository.recordsForMonth(selectedMonth, searchQuery),
         settings = settings,
+        selectedMonth = selectedMonth,
+        searchQuery = searchQuery,
         thisMonthTotal = insight.totalSpent,
         thisMonthTopCategory = insight.topCategory,
         thisMonthSuggestions = insight.suggestion,
-        monthlyBreakdown = repository.monthlySummary(month),
+        monthlyBreakdown = repository.monthlySummary(selectedMonth),
         wirelessAdbHints = wirelessAdbHints
     )
 }

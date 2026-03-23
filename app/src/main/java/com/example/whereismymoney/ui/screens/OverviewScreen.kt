@@ -48,10 +48,27 @@ fun OverviewScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("本月总览", style = MaterialTheme.typography.headlineSmall)
+                    Text("${state.selectedMonth.year}年${state.selectedMonth.monthValue}月总览", style = MaterialTheme.typography.headlineSmall)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(onClick = { viewModel.selectPreviousMonth() }, modifier = Modifier.weight(1f)) { Text("上个月") }
+                        OutlinedButton(onClick = { viewModel.selectNextMonth() }, modifier = Modifier.weight(1f)) { Text("下个月") }
+                    }
                     Text("本月总支出：¥${state.thisMonthTotal}")
                     Text("支出最高类别：${state.thisMonthTopCategory}")
                     Text("建议：${state.thisMonthSuggestions}")
+                }
+            }
+        }
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("搜索账单", style = MaterialTheme.typography.titleMedium)
+                    OutlinedTextField(
+                        value = state.searchQuery,
+                        onValueChange = viewModel::updateSearchQuery,
+                        label = { Text("按标题 / 商户 / 分类搜索") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
         }
@@ -83,7 +100,7 @@ fun OverviewScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel
             }
         }
         item {
-            Text("本月分类统计", style = MaterialTheme.typography.titleMedium)
+            Text("当月分类统计", style = MaterialTheme.typography.titleMedium)
         }
         items(state.monthlyBreakdown) { item ->
             Card(modifier = Modifier.fillMaxWidth()) {
@@ -95,9 +112,9 @@ fun OverviewScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel
             }
         }
         item {
-            Text("最近账单（可编辑）", style = MaterialTheme.typography.titleMedium)
+            Text("账单列表（可搜索 / 编辑 / 删除）", style = MaterialTheme.typography.titleMedium)
         }
-        items(state.records.take(8), key = { it.id }) { record ->
+        items(state.filteredRecords, key = { it.id }) { record ->
             RecordEditorCard(
                 record = record,
                 isEditing = editingRecordId == record.id,
@@ -120,6 +137,10 @@ fun OverviewScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel
                 onSave = {
                     viewModel.updateRecord(record.id, editingTitle, editingMerchant, editingAmount, editingCategoryId.ifBlank { null })
                     editingRecordId = null
+                },
+                onDelete = {
+                    viewModel.deleteRecord(record.id)
+                    if (editingRecordId == record.id) editingRecordId = null
                 }
             )
         }
@@ -140,7 +161,8 @@ private fun RecordEditorCard(
     onMerchantChange: (String) -> Unit,
     onAmountChange: (String) -> Unit,
     onCategoryChange: (String) -> Unit,
-    onSave: () -> Unit
+    onSave: () -> Unit,
+    onDelete: () -> Unit
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -151,8 +173,13 @@ private fun RecordEditorCard(
                 Text("分类：${record.categoryId ?: "未分类"}")
                 Text("来源：${record.source}")
                 Text("时间：${record.occurredAt}")
-                OutlinedButton(onClick = onEditStart, modifier = Modifier.fillMaxWidth()) {
-                    Text("编辑这笔账单")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = onEditStart, modifier = Modifier.weight(1f)) {
+                        Text("编辑")
+                    }
+                    OutlinedButton(onClick = onDelete, modifier = Modifier.weight(1f)) {
+                        Text("删除")
+                    }
                 }
             } else {
                 Text("编辑账单", style = MaterialTheme.typography.titleMedium)

@@ -69,17 +69,34 @@ class InMemoryLedgerRepository(
     fun updateRecord(recordId: String, title: String, merchant: String, amount: BigDecimal, categoryId: String?): List<BillRecord> {
         return records.map { record ->
             if (record.id == recordId) {
+                val finalTitle = title.ifBlank { record.title }
+                val finalMerchant = merchant.ifBlank { record.merchant }
                 record.copy(
-                    title = title.ifBlank { record.title },
-                    merchant = merchant.ifBlank { record.merchant },
+                    title = finalTitle,
+                    merchant = finalMerchant,
                     amount = amount,
                     categoryId = categoryId,
-                    rawText = "$merchant $title $amount"
+                    rawText = "$finalMerchant $finalTitle $amount"
                 )
             } else {
                 record
             }
         }
+    }
+
+    fun deleteRecord(recordId: String): List<BillRecord> = records.filterNot { it.id == recordId }
+
+    fun recordsForMonth(month: YearMonth, query: String = ""): List<BillRecord> {
+        val normalized = query.trim()
+        return records
+            .filter { YearMonth.from(it.occurredAt) == month }
+            .filter {
+                normalized.isBlank() ||
+                    it.title.contains(normalized, ignoreCase = true) ||
+                    it.merchant.contains(normalized, ignoreCase = true) ||
+                    (it.categoryId?.contains(normalized, ignoreCase = true) == true)
+            }
+            .sortedByDescending { it.occurredAt }
     }
 
     fun monthlySummary(month: YearMonth): List<MonthlyCategorySummary> {
@@ -118,8 +135,6 @@ class InMemoryLedgerRepository(
         )
     }
 
-    fun toSnapshot(): LedgerSnapshot = LedgerSnapshot(categories, rules, records, settings)
-
     companion object {
         fun fromSnapshot(snapshot: LedgerSnapshot): InMemoryLedgerRepository {
             return InMemoryLedgerRepository(
@@ -155,7 +170,9 @@ class InMemoryLedgerRepository(
                 enableNotificationMirror = true,
                 aiEndpoint = "https://api.example.com/v1/classify",
                 aiApiKeyPlaceholder = "Paste-your-secret-here",
-                reviewUnknownBills = true
+                reviewUnknownBills = true,
+                allowedPackageNames = listOf("com.tencent.mm", "com.eg.android.AlipayGphone"),
+                dedupeWindowMinutes = 2
             )
             return LedgerSnapshot(categories, rules, records, settings)
         }

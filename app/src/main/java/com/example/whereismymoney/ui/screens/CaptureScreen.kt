@@ -11,9 +11,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.whereismymoney.data.model.CaptureCandidate
@@ -33,6 +38,12 @@ fun CaptureScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel:
         rawText = "微信支付成功 Starbucks Reserve ¥36.00",
         source = CaptureMode.ACCESSIBILITY
     )
+    var allowedPackagesInput by remember(state.settings.allowedPackageNames) {
+        mutableStateOf(state.settings.allowedPackageNames.joinToString(","))
+    }
+    var dedupeWindowInput by remember(state.settings.dedupeWindowMinutes) {
+        mutableStateOf(state.settings.dedupeWindowMinutes.toString())
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -45,7 +56,7 @@ fun CaptureScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel:
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("自动记账链路", style = MaterialTheme.typography.headlineSmall)
-                    Text("现实可行方案：优先无障碍抓取支付成功页；无线 ADB 更适合作为调试/高级模式辅助，而不是长期后台依赖。")
+                    Text("默认以无障碍作为支付识别主链路；ADB 仅作为高级功能开放给有能力的用户。")
                     Text("无障碍：${if (state.settings.useAccessibilityService) "已启用" else "未启用"}")
                     Switch(
                         checked = state.settings.useAccessibilityService,
@@ -53,18 +64,11 @@ fun CaptureScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel:
                             viewModel.updateSettings { it.copy(useAccessibilityService = checked) }
                         }
                     )
-                    Text("无线 ADB 辅助：${if (state.settings.useAdbBridge) "已启用" else "未启用"}")
+                    Text("无线 ADB 高级功能：${if (state.settings.useAdbBridge) "已启用" else "未启用"}")
                     Switch(
                         checked = state.settings.useAdbBridge,
                         onCheckedChange = { checked ->
                             viewModel.updateSettings { it.copy(useAdbBridge = checked) }
-                        }
-                    )
-                    Text("通知镜像：${if (state.settings.enableNotificationMirror) "已启用" else "未启用"}")
-                    Switch(
-                        checked = state.settings.enableNotificationMirror,
-                        onCheckedChange = { checked ->
-                            viewModel.updateSettings { it.copy(enableNotificationMirror = checked) }
                         }
                     )
                 }
@@ -73,8 +77,40 @@ fun CaptureScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel:
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("白名单与去重", style = MaterialTheme.typography.titleMedium)
+                    OutlinedTextField(
+                        value = allowedPackagesInput,
+                        onValueChange = { allowedPackagesInput = it },
+                        label = { Text("允许自动抓取的包名，逗号分隔") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = dedupeWindowInput,
+                        onValueChange = { dedupeWindowInput = it },
+                        label = { Text("去重时间窗（分钟）") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            viewModel.updateSettings {
+                                it.copy(
+                                    allowedPackageNames = allowedPackagesInput.split(',').map(String::trim).filter(String::isNotBlank),
+                                    dedupeWindowMinutes = dedupeWindowInput.toIntOrNull() ?: it.dedupeWindowMinutes
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("保存白名单 / 去重设置")
+                    }
+                }
+            }
+        }
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("模拟导入支付账单", style = MaterialTheme.typography.titleMedium)
-                    Text("点击后按当前规则把一条支付成功记录写入本地账本。")
+                    Text("点击后按当前规则、白名单和去重策略把一条支付成功记录写入本地账本。")
                     OutlinedButton(onClick = { viewModel.importCandidate(demoCandidate) }, modifier = Modifier.fillMaxWidth()) {
                         Text("导入一条模拟支付账单")
                     }
@@ -93,8 +129,8 @@ fun CaptureScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel:
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("建议的自动记账流程", style = MaterialTheme.typography.titleMedium)
-                    Text("1. 监听微信 / 支付宝支付结果页")
-                    Text("2. 解析金额、商户、时间并本地去重")
+                    Text("1. 监听白名单内支付 App 的支付结果页")
+                    Text("2. 解析金额、商户、时间并在本地按时间窗去重")
                     Text("3. 按规则决定记录 / 忽略 / 询问")
                     Text("4. 仅把必要字段发送给大模型做分类（可选）")
                 }
