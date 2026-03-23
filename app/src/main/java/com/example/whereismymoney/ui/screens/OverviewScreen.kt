@@ -1,12 +1,16 @@
 package com.example.whereismymoney.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,11 +26,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.whereismymoney.data.model.BillRecord
 import com.example.whereismymoney.ui.state.LedgerUiState
 import com.example.whereismymoney.ui.state.LedgerViewModel
+import java.math.BigDecimal
+import kotlin.math.roundToInt
 
 @Composable
 fun OverviewScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel: LedgerViewModel) {
@@ -81,12 +90,19 @@ fun OverviewScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel
     if (state.exportMessage != null) {
         AlertDialog(
             onDismissRequest = viewModel::clearExportMessage,
-            title = { Text("导出结果") },
+            title = { Text("提示") },
             text = { Text(state.exportMessage ?: "") },
             confirmButton = {
                 TextButton(onClick = viewModel::clearExportMessage) { Text("知道了") }
             }
         )
+    }
+
+    val budgetRows = state.monthlyBreakdown.mapNotNull { summary ->
+        val category = state.categories.firstOrNull { it.name == summary.categoryName }
+        val budget = category?.monthlyBudgetHint ?: return@mapNotNull null
+        val ratio = if (budget.compareTo(BigDecimal.ZERO) == 0) 0f else summary.totalAmount.divide(budget, 4, java.math.RoundingMode.HALF_UP).toFloat()
+        BudgetRow(summary.categoryName, summary.totalAmount, budget, ratio)
     }
 
     LazyColumn(
@@ -110,6 +126,52 @@ fun OverviewScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel
                     Text("本月总支出：¥${state.thisMonthTotal}")
                     Text("支出最高类别：${state.thisMonthTopCategory}")
                     Text("建议：${state.thisMonthSuggestions}")
+                }
+            }
+        }
+        if (budgetRows.isNotEmpty()) {
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("预算提醒", style = MaterialTheme.typography.titleMedium)
+                        budgetRows.forEach { row ->
+                            val percent = (row.ratio * 100).roundToInt()
+                            val levelText = when {
+                                row.ratio >= 1f -> "已超预算"
+                                row.ratio >= 0.8f -> "接近预算"
+                                else -> "正常"
+                            }
+                            Text("${row.categoryName}：¥${row.spent} / ¥${row.budget}（$percent%）- $levelText")
+                        }
+                    }
+                }
+            }
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("分类统计图表", style = MaterialTheme.typography.titleMedium)
+                        budgetRows.forEach { row ->
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text(row.categoryName, fontWeight = FontWeight.Medium)
+                                    Text("¥${row.spent}")
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(12.dp)
+                                        .background(Color(0xFFEAEAEA))
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth(row.ratio.coerceIn(0f, 1f))
+                                            .height(12.dp)
+                                            .background(if (row.ratio >= 1f) Color(0xFFE57373) else Color(0xFF64B5F6))
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -194,6 +256,13 @@ fun OverviewScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel
         }
     }
 }
+
+data class BudgetRow(
+    val categoryName: String,
+    val spent: BigDecimal,
+    val budget: BigDecimal,
+    val ratio: Float
+)
 
 @Composable
 private fun RecordEditorCard(

@@ -147,11 +147,11 @@ class InMemoryLedgerRepository(
 
         fun demo(): LedgerSnapshot {
             val categories = listOf(
-                ExpenseCategory("food", "餐饮"),
-                ExpenseCategory("transport", "交通"),
-                ExpenseCategory("groceries", "日用杂货"),
-                ExpenseCategory("housing", "居住"),
-                ExpenseCategory("other", "其他")
+                ExpenseCategory("food", "餐饮", BigDecimal("600")),
+                ExpenseCategory("transport", "交通", BigDecimal("300")),
+                ExpenseCategory("groceries", "日用杂货", BigDecimal("500")),
+                ExpenseCategory("housing", "居住", BigDecimal("2000")),
+                ExpenseCategory("other", "其他", BigDecimal("400"))
             )
             val rules = listOf(
                 BillingRule("1", "Starbucks", RecordRuleAction.ALWAYS_RECORD, "food", "咖啡始终记录"),
