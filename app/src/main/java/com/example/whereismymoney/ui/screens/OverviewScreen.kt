@@ -10,11 +10,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,6 +39,55 @@ fun OverviewScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel
     var editingMerchant by remember { mutableStateOf("") }
     var editingAmount by remember { mutableStateOf("") }
     var editingCategoryId by remember { mutableStateOf("") }
+    var pendingDeleteRecord by remember { mutableStateOf<BillRecord?>(null) }
+    var pendingSaveRecordId by remember { mutableStateOf<String?>(null) }
+
+    if (pendingDeleteRecord != null) {
+        AlertDialog(
+            onDismissRequest = { pendingDeleteRecord = null },
+            title = { Text("确认删除") },
+            text = { Text("确定要删除“${pendingDeleteRecord?.title}”这笔账单吗？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteRecord(pendingDeleteRecord!!.id)
+                    if (editingRecordId == pendingDeleteRecord!!.id) editingRecordId = null
+                    pendingDeleteRecord = null
+                }) { Text("删除") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeleteRecord = null }) { Text("取消") }
+            }
+        )
+    }
+
+    if (pendingSaveRecordId != null) {
+        AlertDialog(
+            onDismissRequest = { pendingSaveRecordId = null },
+            title = { Text("确认修改") },
+            text = { Text("确定保存这笔账单的修改吗？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.updateRecord(pendingSaveRecordId!!, editingTitle, editingMerchant, editingAmount, editingCategoryId.ifBlank { null })
+                    editingRecordId = null
+                    pendingSaveRecordId = null
+                }) { Text("保存") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingSaveRecordId = null }) { Text("取消") }
+            }
+        )
+    }
+
+    if (state.exportMessage != null) {
+        AlertDialog(
+            onDismissRequest = viewModel::clearExportMessage,
+            title = { Text("导出结果") },
+            text = { Text(state.exportMessage ?: "") },
+            confirmButton = {
+                TextButton(onClick = viewModel::clearExportMessage) { Text("知道了") }
+            }
+        )
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -52,6 +103,9 @@ fun OverviewScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         OutlinedButton(onClick = { viewModel.selectPreviousMonth() }, modifier = Modifier.weight(1f)) { Text("上个月") }
                         OutlinedButton(onClick = { viewModel.selectNextMonth() }, modifier = Modifier.weight(1f)) { Text("下个月") }
+                    }
+                    OutlinedButton(onClick = viewModel::exportSelectedMonthCsv, modifier = Modifier.fillMaxWidth()) {
+                        Text("导出当前月份 CSV")
                     }
                     Text("本月总支出：¥${state.thisMonthTotal}")
                     Text("支出最高类别：${state.thisMonthTopCategory}")
@@ -134,14 +188,8 @@ fun OverviewScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel
                 onMerchantChange = { editingMerchant = it },
                 onAmountChange = { editingAmount = it },
                 onCategoryChange = { editingCategoryId = it },
-                onSave = {
-                    viewModel.updateRecord(record.id, editingTitle, editingMerchant, editingAmount, editingCategoryId.ifBlank { null })
-                    editingRecordId = null
-                },
-                onDelete = {
-                    viewModel.deleteRecord(record.id)
-                    if (editingRecordId == record.id) editingRecordId = null
-                }
+                onSave = { pendingSaveRecordId = record.id },
+                onDelete = { pendingDeleteRecord = record }
             )
         }
     }

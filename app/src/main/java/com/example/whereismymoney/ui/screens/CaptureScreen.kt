@@ -77,6 +77,18 @@ fun CaptureScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel:
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("无障碍权限获取引导", style = MaterialTheme.typography.titleMedium)
+                    Text("1. 打开系统设置。")
+                    Text("2. 进入“无障碍”或“辅助功能”。")
+                    Text("3. 找到 Where Is My Money。")
+                    Text("4. 开启服务，并确认允许读取屏幕内容。")
+                    Text("5. 回到 App 后再测试自动抓取。")
+                }
+            }
+        }
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("白名单与去重", style = MaterialTheme.typography.titleMedium)
                     OutlinedTextField(
                         value = allowedPackagesInput,
@@ -129,10 +141,11 @@ fun CaptureScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel:
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("建议的自动记账流程", style = MaterialTheme.typography.titleMedium)
-                    Text("1. 监听白名单内支付 App 的支付结果页")
-                    Text("2. 解析金额、商户、时间并在本地按时间窗去重")
-                    Text("3. 按规则决定记录 / 忽略 / 询问")
-                    Text("4. 仅把必要字段发送给大模型做分类（可选）")
+                    Text("1. 先完成无障碍授权")
+                    Text("2. 监听白名单内支付 App 的支付结果页")
+                    Text("3. 解析金额、商户、时间并在本地按时间窗去重")
+                    Text("4. 按规则决定记录 / 忽略 / 询问")
+                    Text("5. 仅把必要字段发送给大模型做分类（可选）")
                 }
             }
         }

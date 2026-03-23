@@ -18,6 +18,7 @@ import com.example.whereismymoney.data.model.RecordRuleAction
 import com.example.whereismymoney.data.repository.InMemoryLedgerRepository
 import java.math.BigDecimal
 import java.time.YearMonth
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 
 class LedgerViewModel(application: Application) : AndroidViewModel(application) {
@@ -68,7 +69,10 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun importCandidate(candidate: CaptureCandidate) {
-        if (captureManager.isDuplicate(candidate, uiState.allRecords, uiState.settings)) return
+        if (captureManager.isDuplicate(candidate, uiState.allRecords, uiState.settings)) {
+            uiState = uiState.copy(exportMessage = "检测到重复账单，已跳过自动入账。")
+            return
+        }
         val repository = currentRepository()
         val action = repository.shouldRecord(candidate)
         when (action) {
@@ -86,20 +90,71 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun updateSearchQuery(query: String) {
-        uiState = currentSnapshot().toUiState(captureManager.buildWirelessAdbHints(), selectedMonth = uiState.selectedMonth, searchQuery = query)
+        uiState = currentSnapshot().toUiState(
+            wirelessAdbHints = captureManager.buildWirelessAdbHints(),
+            selectedMonth = uiState.selectedMonth,
+            searchQuery = query,
+            exportMessage = uiState.exportMessage
+        )
     }
 
     fun selectPreviousMonth() {
-        uiState = currentSnapshot().toUiState(captureManager.buildWirelessAdbHints(), selectedMonth = uiState.selectedMonth.minusMonths(1), searchQuery = uiState.searchQuery)
+        uiState = currentSnapshot().toUiState(
+            wirelessAdbHints = captureManager.buildWirelessAdbHints(),
+            selectedMonth = uiState.selectedMonth.minusMonths(1),
+            searchQuery = uiState.searchQuery,
+            exportMessage = uiState.exportMessage
+        )
     }
 
     fun selectNextMonth() {
-        uiState = currentSnapshot().toUiState(captureManager.buildWirelessAdbHints(), selectedMonth = uiState.selectedMonth.plusMonths(1), searchQuery = uiState.searchQuery)
+        uiState = currentSnapshot().toUiState(
+            wirelessAdbHints = captureManager.buildWirelessAdbHints(),
+            selectedMonth = uiState.selectedMonth.plusMonths(1),
+            searchQuery = uiState.searchQuery,
+            exportMessage = uiState.exportMessage
+        )
+    }
+
+    fun exportSelectedMonthCsv() {
+        val exportDir = getApplication<Application>().filesDir.resolve("exports")
+        exportDir.mkdirs()
+        val fileName = "ledger-${uiState.selectedMonth.format(DateTimeFormatter.ofPattern("yyyy-MM"))}.csv"
+        val target = exportDir.resolve(fileName)
+        val csv = buildString {
+            appendLine("id,title,merchant,amount,occurredAt,source,categoryId,autoCaptured,needsReview")
+            uiState.filteredRecords.forEach { record ->
+                appendLine(
+                    listOf(
+                        record.id.csvEscape(),
+                        record.title.csvEscape(),
+                        record.merchant.csvEscape(),
+                        record.amount.toPlainString().csvEscape(),
+                        record.occurredAt.toString().csvEscape(),
+                        record.source.name.csvEscape(),
+                        (record.categoryId ?: "").csvEscape(),
+                        record.autoCaptured.toString().csvEscape(),
+                        record.needsReview.toString().csvEscape()
+                    ).joinToString(",")
+                )
+            }
+        }
+        target.writeText(csv)
+        uiState = uiState.copy(exportMessage = "已导出 CSV：${target.absolutePath}")
+    }
+
+    fun clearExportMessage() {
+        uiState = uiState.copy(exportMessage = null)
     }
 
     private fun persist(snapshot: LedgerSnapshot) {
         storage.save(snapshot)
-        uiState = snapshot.toUiState(captureManager.buildWirelessAdbHints(), selectedMonth = uiState.selectedMonth, searchQuery = uiState.searchQuery)
+        uiState = snapshot.toUiState(
+            wirelessAdbHints = captureManager.buildWirelessAdbHints(),
+            selectedMonth = uiState.selectedMonth,
+            searchQuery = uiState.searchQuery,
+            exportMessage = uiState.exportMessage
+        )
     }
 
     private fun currentRepository(): InMemoryLedgerRepository = InMemoryLedgerRepository.fromSnapshot(currentSnapshot())
@@ -133,13 +188,15 @@ data class LedgerUiState(
     val thisMonthTopCategory: String = "暂无数据",
     val thisMonthSuggestions: String = "",
     val monthlyBreakdown: List<MonthlyCategorySummary> = emptyList(),
-    val wirelessAdbHints: List<String> = emptyList()
+    val wirelessAdbHints: List<String> = emptyList(),
+    val exportMessage: String? = null
 )
 
 private fun LedgerSnapshot.toUiState(
     wirelessAdbHints: List<String>,
     selectedMonth: YearMonth = YearMonth.now(),
-    searchQuery: String = ""
+    searchQuery: String = "",
+    exportMessage: String? = null
 ): LedgerUiState {
     val repository = InMemoryLedgerRepository.fromSnapshot(this)
     val insight = repository.monthlyInsight(selectedMonth)
@@ -155,6 +212,12 @@ private fun LedgerSnapshot.toUiState(
         thisMonthTopCategory = insight.topCategory,
         thisMonthSuggestions = insight.suggestion,
         monthlyBreakdown = repository.monthlySummary(selectedMonth),
-        wirelessAdbHints = wirelessAdbHints
+        wirelessAdbHints = wirelessAdbHints,
+        exportMessage = exportMessage
     )
+}
+
+private fun String.csvEscape(): String {
+    val escaped = replace("\"", "\"\"")
+    return "\"$escaped\""
 }
