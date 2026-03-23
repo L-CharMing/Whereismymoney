@@ -66,6 +66,22 @@ class InMemoryLedgerRepository(
         )
     }
 
+    fun updateRecord(recordId: String, title: String, merchant: String, amount: BigDecimal, categoryId: String?): List<BillRecord> {
+        return records.map { record ->
+            if (record.id == recordId) {
+                record.copy(
+                    title = title.ifBlank { record.title },
+                    merchant = merchant.ifBlank { record.merchant },
+                    amount = amount,
+                    categoryId = categoryId,
+                    rawText = "$merchant $title $amount"
+                )
+            } else {
+                record
+            }
+        }
+    }
+
     fun monthlySummary(month: YearMonth): List<MonthlyCategorySummary> {
         val monthRecords = records.filter { YearMonth.from(it.occurredAt) == month }
         val total = monthRecords.fold(BigDecimal.ZERO) { acc, record -> acc + record.amount }

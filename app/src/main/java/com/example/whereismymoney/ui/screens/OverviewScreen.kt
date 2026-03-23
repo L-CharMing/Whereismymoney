@@ -3,9 +3,11 @@ package com.example.whereismymoney.ui.screens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
@@ -20,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.whereismymoney.data.model.BillRecord
 import com.example.whereismymoney.ui.state.LedgerUiState
 import com.example.whereismymoney.ui.state.LedgerViewModel
 
@@ -29,6 +32,11 @@ fun OverviewScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel
     var merchant by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
     var categoryId by remember { mutableStateOf<String?>(state.categories.firstOrNull()?.id) }
+    var editingRecordId by remember { mutableStateOf<String?>(null) }
+    var editingTitle by remember { mutableStateOf("") }
+    var editingMerchant by remember { mutableStateOf("") }
+    var editingAmount by remember { mutableStateOf("") }
+    var editingCategoryId by remember { mutableStateOf("") }
 
     LazyColumn(
         modifier = Modifier
@@ -87,16 +95,78 @@ fun OverviewScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel
             }
         }
         item {
-            Text("最近账单", style = MaterialTheme.typography.titleMedium)
+            Text("最近账单（可编辑）", style = MaterialTheme.typography.titleMedium)
         }
-        items(state.records.take(8)) { record ->
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(record.title, style = MaterialTheme.typography.titleMedium)
-                    Text("商户：${record.merchant}")
-                    Text("金额：¥${record.amount}")
-                    Text("来源：${record.source}")
-                    Text("时间：${record.occurredAt}")
+        items(state.records.take(8), key = { it.id }) { record ->
+            RecordEditorCard(
+                record = record,
+                isEditing = editingRecordId == record.id,
+                editingTitle = editingTitle,
+                editingMerchant = editingMerchant,
+                editingAmount = editingAmount,
+                editingCategoryId = editingCategoryId,
+                onEditStart = {
+                    editingRecordId = record.id
+                    editingTitle = record.title
+                    editingMerchant = record.merchant
+                    editingAmount = record.amount.toPlainString()
+                    editingCategoryId = record.categoryId.orEmpty()
+                },
+                onCancel = { editingRecordId = null },
+                onTitleChange = { editingTitle = it },
+                onMerchantChange = { editingMerchant = it },
+                onAmountChange = { editingAmount = it },
+                onCategoryChange = { editingCategoryId = it },
+                onSave = {
+                    viewModel.updateRecord(record.id, editingTitle, editingMerchant, editingAmount, editingCategoryId.ifBlank { null })
+                    editingRecordId = null
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun RecordEditorCard(
+    record: BillRecord,
+    isEditing: Boolean,
+    editingTitle: String,
+    editingMerchant: String,
+    editingAmount: String,
+    editingCategoryId: String,
+    onEditStart: () -> Unit,
+    onCancel: () -> Unit,
+    onTitleChange: (String) -> Unit,
+    onMerchantChange: (String) -> Unit,
+    onAmountChange: (String) -> Unit,
+    onCategoryChange: (String) -> Unit,
+    onSave: () -> Unit
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (!isEditing) {
+                Text(record.title, style = MaterialTheme.typography.titleMedium)
+                Text("商户：${record.merchant}")
+                Text("金额：¥${record.amount}")
+                Text("分类：${record.categoryId ?: "未分类"}")
+                Text("来源：${record.source}")
+                Text("时间：${record.occurredAt}")
+                OutlinedButton(onClick = onEditStart, modifier = Modifier.fillMaxWidth()) {
+                    Text("编辑这笔账单")
+                }
+            } else {
+                Text("编辑账单", style = MaterialTheme.typography.titleMedium)
+                OutlinedTextField(value = editingTitle, onValueChange = onTitleChange, label = { Text("标题") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = editingMerchant, onValueChange = onMerchantChange, label = { Text("商户") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = editingAmount, onValueChange = onAmountChange, label = { Text("金额") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = editingCategoryId, onValueChange = onCategoryChange, label = { Text("分类ID") }, modifier = Modifier.fillMaxWidth())
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = onSave, modifier = Modifier.weight(1f)) {
+                        Text("保存修改")
+                    }
+                    OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) {
+                        Text("取消")
+                    }
                 }
             }
         }

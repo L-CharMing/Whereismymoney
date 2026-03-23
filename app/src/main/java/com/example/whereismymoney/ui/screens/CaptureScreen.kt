@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -32,58 +34,70 @@ fun CaptureScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel:
         source = CaptureMode.ACCESSIBILITY
     )
 
-    Column(
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("自动记账链路", style = MaterialTheme.typography.headlineSmall)
-                Text("本地账本默认离线保存；只有你接入大模型分类 API 时，才需要联网。")
-                Text("无障碍：${if (state.settings.useAccessibilityService) "已启用" else "未启用"}")
-                Switch(
-                    checked = state.settings.useAccessibilityService,
-                    onCheckedChange = { checked ->
-                        viewModel.updateSettings { it.copy(useAccessibilityService = checked) }
-                    }
-                )
-                Text("ADB 辅助：${if (state.settings.useAdbBridge) "已启用" else "未启用"}")
-                Switch(
-                    checked = state.settings.useAdbBridge,
-                    onCheckedChange = { checked ->
-                        viewModel.updateSettings { it.copy(useAdbBridge = checked) }
-                    }
-                )
-                Text("通知镜像：${if (state.settings.enableNotificationMirror) "已启用" else "未启用"}")
-                Switch(
-                    checked = state.settings.enableNotificationMirror,
-                    onCheckedChange = { checked ->
-                        viewModel.updateSettings { it.copy(enableNotificationMirror = checked) }
-                    }
-                )
-            }
-        }
-
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("模拟导入支付账单", style = MaterialTheme.typography.titleMedium)
-                Text("点击后按当前规则把一条支付成功记录写入本地账本。")
-                OutlinedButton(onClick = { viewModel.importCandidate(demoCandidate) }, modifier = Modifier.fillMaxWidth()) {
-                    Text("导入一条模拟支付账单")
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("自动记账链路", style = MaterialTheme.typography.headlineSmall)
+                    Text("现实可行方案：优先无障碍抓取支付成功页；无线 ADB 更适合作为调试/高级模式辅助，而不是长期后台依赖。")
+                    Text("无障碍：${if (state.settings.useAccessibilityService) "已启用" else "未启用"}")
+                    Switch(
+                        checked = state.settings.useAccessibilityService,
+                        onCheckedChange = { checked ->
+                            viewModel.updateSettings { it.copy(useAccessibilityService = checked) }
+                        }
+                    )
+                    Text("无线 ADB 辅助：${if (state.settings.useAdbBridge) "已启用" else "未启用"}")
+                    Switch(
+                        checked = state.settings.useAdbBridge,
+                        onCheckedChange = { checked ->
+                            viewModel.updateSettings { it.copy(useAdbBridge = checked) }
+                        }
+                    )
+                    Text("通知镜像：${if (state.settings.enableNotificationMirror) "已启用" else "未启用"}")
+                    Switch(
+                        checked = state.settings.enableNotificationMirror,
+                        onCheckedChange = { checked ->
+                            viewModel.updateSettings { it.copy(enableNotificationMirror = checked) }
+                        }
+                    )
                 }
             }
         }
-
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("后续实现建议", style = MaterialTheme.typography.titleMedium)
-                Text("• 接 AccessibilityEvent 文本解析与包名白名单")
-                Text("• 对同一笔支付做去重和延迟确认")
-                Text("• 增加本地 OCR 作为无障碍备选")
-                Text("• 联网仅用于大模型分类，不上传完整账本")
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("模拟导入支付账单", style = MaterialTheme.typography.titleMedium)
+                    Text("点击后按当前规则把一条支付成功记录写入本地账本。")
+                    OutlinedButton(onClick = { viewModel.importCandidate(demoCandidate) }, modifier = Modifier.fillMaxWidth()) {
+                        Text("导入一条模拟支付账单")
+                    }
+                }
+            }
+        }
+        item {
+            Text("无线 ADB 使用建议", style = MaterialTheme.typography.titleMedium)
+        }
+        items(state.wirelessAdbHints) { hint ->
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Text(hint, modifier = Modifier.padding(16.dp))
+            }
+        }
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("建议的自动记账流程", style = MaterialTheme.typography.titleMedium)
+                    Text("1. 监听微信 / 支付宝支付结果页")
+                    Text("2. 解析金额、商户、时间并本地去重")
+                    Text("3. 按规则决定记录 / 忽略 / 询问")
+                    Text("4. 仅把必要字段发送给大模型做分类（可选）")
+                }
             }
         }
     }
