@@ -174,7 +174,7 @@ class InMemoryLedgerRepository(
                 allowedPackageNames = listOf("com.tencent.mm", "com.eg.android.AlipayGphone"),
                 dedupeWindowMinutes = 2
             )
-            return LedgerSnapshot(categories, rules, records, settings)
+            return LedgerSnapshot(categories, rules, records, settings, emptyList())
         }
     }
 }

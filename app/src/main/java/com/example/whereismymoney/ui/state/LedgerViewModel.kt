@@ -14,9 +14,11 @@ import com.example.whereismymoney.data.model.CaptureSettings
 import com.example.whereismymoney.data.model.ExpenseCategory
 import com.example.whereismymoney.data.model.LedgerSnapshot
 import com.example.whereismymoney.data.model.MonthlyCategorySummary
+import com.example.whereismymoney.data.model.ProductCostRecord
 import com.example.whereismymoney.data.model.RecordRuleAction
 import com.example.whereismymoney.data.repository.InMemoryLedgerRepository
 import java.math.BigDecimal
+import java.time.LocalDateTime
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.UUID
@@ -37,34 +39,45 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
         val amount = amountInput.toBigDecimalOrNull() ?: return
         val repository = currentRepository()
         val record = repository.addManualRecord(
-            title = title.ifBlank { merchant },
-            merchant = merchant.ifBlank { "手动录入" },
+            title = title.ifBlank { "手动记录" },
+            merchant = merchant.ifBlank { "" },
             amount = amount,
             categoryId = categoryId
         )
         persist(currentSnapshot().copy(records = listOf(record) + uiState.allRecords))
     }
 
-    fun updateRecord(recordId: String, title: String, merchant: String, amountInput: String, categoryId: String?) {
-        val amount = amountInput.toBigDecimalOrNull() ?: return
-        val updatedRecords = currentRepository().updateRecord(recordId, title, merchant, amount, categoryId)
-        persist(currentSnapshot().copy(records = updatedRecords))
+    fun addProductCost(name: String, totalPriceInput: String, daysInput: String) {
+        val totalPrice = totalPriceInput.toBigDecimalOrNull() ?: return
+        val days = daysInput.toIntOrNull() ?: return
+        if (days <= 0 || name.isBlank()) return
+        val record = ProductCostRecord(
+            id = UUID.randomUUID().toString(),
+            name = name,
+            totalPrice = totalPrice,
+            days = days,
+            createdAt = LocalDateTime.now()
+        )
+        persist(currentSnapshot().copy(productCosts = listOf(record) + uiState.productCosts))
     }
 
-    fun deleteRecord(recordId: String) {
-        val updatedRecords = currentRepository().deleteRecord(recordId)
-        persist(currentSnapshot().copy(records = updatedRecords))
+    fun addAiVoiceBill(voiceText: String) {
+        if (uiState.settings.aiEndpoint.isBlank() || uiState.settings.aiApiKeyPlaceholder.isBlank()) {
+            uiState = uiState.copy(exportMessage = "请先在设置页配置 AI Endpoint 和 Token。")
+            return
+        }
+        val amount = Regex("([0-9]+(?:\\.[0-9]{1,2})?)").find(voiceText)?.groupValues?.get(1)?.toBigDecimalOrNull()
+        val title = voiceText.replace(Regex("[0-9.]+"), "").trim().ifBlank { "AI语音记账" }
+        if (amount == null) {
+            uiState = uiState.copy(exportMessage = "AI语音记账示例：未识别到金额，请在文本里包含数字金额。")
+            return
+        }
+        addManualRecord(title = title, merchant = "AI语音", amountInput = amount.toPlainString(), categoryId = null)
     }
 
     fun addRule(matcher: String, action: RecordRuleAction, categoryId: String?, notes: String) {
         if (matcher.isBlank()) return
-        val newRule = BillingRule(
-            id = UUID.randomUUID().toString(),
-            matcher = matcher,
-            action = action,
-            categoryId = categoryId,
-            notes = notes
-        )
+        val newRule = BillingRule(UUID.randomUUID().toString(), matcher, action, categoryId, notes)
         persist(currentSnapshot().copy(rules = listOf(newRule) + uiState.rules))
     }
 
@@ -74,8 +87,7 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
             return
         }
         val repository = currentRepository()
-        val action = repository.shouldRecord(candidate)
-        when (action) {
+        when (repository.shouldRecord(candidate)) {
             RecordRuleAction.IGNORE -> return
             RecordRuleAction.ASK_EVERY_TIME,
             RecordRuleAction.ALWAYS_RECORD -> {
@@ -90,53 +102,25 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun updateSearchQuery(query: String) {
-        uiState = currentSnapshot().toUiState(
-            wirelessAdbHints = captureManager.buildWirelessAdbHints(),
-            selectedMonth = uiState.selectedMonth,
-            searchQuery = query,
-            exportMessage = uiState.exportMessage
-        )
+        uiState = currentSnapshot().toUiState(captureManager.buildWirelessAdbHints(), uiState.selectedMonth, query, uiState.exportMessage)
     }
 
     fun selectPreviousMonth() {
-        uiState = currentSnapshot().toUiState(
-            wirelessAdbHints = captureManager.buildWirelessAdbHints(),
-            selectedMonth = uiState.selectedMonth.minusMonths(1),
-            searchQuery = uiState.searchQuery,
-            exportMessage = uiState.exportMessage
-        )
+        uiState = currentSnapshot().toUiState(captureManager.buildWirelessAdbHints(), uiState.selectedMonth.minusMonths(1), uiState.searchQuery, uiState.exportMessage)
     }
 
     fun selectNextMonth() {
-        uiState = currentSnapshot().toUiState(
-            wirelessAdbHints = captureManager.buildWirelessAdbHints(),
-            selectedMonth = uiState.selectedMonth.plusMonths(1),
-            searchQuery = uiState.searchQuery,
-            exportMessage = uiState.exportMessage
-        )
+        uiState = currentSnapshot().toUiState(captureManager.buildWirelessAdbHints(), uiState.selectedMonth.plusMonths(1), uiState.searchQuery, uiState.exportMessage)
     }
 
     fun exportSelectedMonthCsv() {
-        val exportDir = getApplication<Application>().filesDir.resolve("exports")
-        exportDir.mkdirs()
+        val exportDir = getApplication<Application>().filesDir.resolve("exports").apply { mkdirs() }
         val fileName = "ledger-${uiState.selectedMonth.format(DateTimeFormatter.ofPattern("yyyy-MM"))}.csv"
         val target = exportDir.resolve(fileName)
         val csv = buildString {
-            appendLine("id,title,merchant,amount,occurredAt,source,categoryId,autoCaptured,needsReview")
+            appendLine("id,title,amount,occurredAt,source")
             uiState.filteredRecords.forEach { record ->
-                appendLine(
-                    listOf(
-                        record.id.csvEscape(),
-                        record.title.csvEscape(),
-                        record.merchant.csvEscape(),
-                        record.amount.toPlainString().csvEscape(),
-                        record.occurredAt.toString().csvEscape(),
-                        record.source.name.csvEscape(),
-                        (record.categoryId ?: "").csvEscape(),
-                        record.autoCaptured.toString().csvEscape(),
-                        record.needsReview.toString().csvEscape()
-                    ).joinToString(",")
-                )
+                appendLine(listOf(record.id.csvEscape(), record.title.csvEscape(), record.amount.toPlainString().csvEscape(), record.occurredAt.toString().csvEscape(), record.source.name.csvEscape()).joinToString(","))
             }
         }
         target.writeText(csv)
@@ -149,12 +133,7 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun persist(snapshot: LedgerSnapshot) {
         storage.save(snapshot)
-        uiState = snapshot.toUiState(
-            wirelessAdbHints = captureManager.buildWirelessAdbHints(),
-            selectedMonth = uiState.selectedMonth,
-            searchQuery = uiState.searchQuery,
-            exportMessage = uiState.exportMessage
-        )
+        uiState = snapshot.toUiState(captureManager.buildWirelessAdbHints(), uiState.selectedMonth, uiState.searchQuery, uiState.exportMessage)
     }
 
     private fun currentRepository(): InMemoryLedgerRepository = InMemoryLedgerRepository.fromSnapshot(currentSnapshot())
@@ -163,7 +142,8 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
         categories = uiState.categories,
         rules = uiState.rules,
         records = uiState.allRecords,
-        settings = uiState.settings
+        settings = uiState.settings,
+        productCosts = uiState.productCosts
     )
 }
 
@@ -172,6 +152,7 @@ data class LedgerUiState(
     val rules: List<BillingRule> = emptyList(),
     val allRecords: List<BillRecord> = emptyList(),
     val filteredRecords: List<BillRecord> = emptyList(),
+    val productCosts: List<ProductCostRecord> = emptyList(),
     val settings: CaptureSettings = CaptureSettings(
         useAccessibilityService = true,
         useAdbBridge = false,
@@ -205,6 +186,7 @@ private fun LedgerSnapshot.toUiState(
         rules = rules,
         allRecords = records.sortedByDescending { it.occurredAt },
         filteredRecords = repository.recordsForMonth(selectedMonth, searchQuery),
+        productCosts = productCosts.sortedByDescending { it.createdAt },
         settings = settings,
         selectedMonth = selectedMonth,
         searchQuery = searchQuery,
@@ -217,7 +199,4 @@ private fun LedgerSnapshot.toUiState(
     )
 }
 
-private fun String.csvEscape(): String {
-    val escaped = replace("\"", "\"\"")
-    return "\"$escaped\""
-}
+private fun String.csvEscape(): String = "\"${replace("\"", "\"\"")}\""

@@ -44,6 +44,17 @@ data class BillRecord(
     val rawText: String
 )
 
+data class ProductCostRecord(
+    val id: String,
+    val name: String,
+    val totalPrice: BigDecimal,
+    val days: Int,
+    val createdAt: LocalDateTime
+) {
+    val dailyPrice: BigDecimal
+        get() = if (days <= 0) BigDecimal.ZERO else totalPrice.divide(BigDecimal(days), 2, java.math.RoundingMode.HALF_UP)
+}
+
 data class MonthlyCategorySummary(
     val month: YearMonth,
     val categoryName: String,
@@ -83,5 +94,6 @@ data class LedgerSnapshot(
     val categories: List<ExpenseCategory>,
     val rules: List<BillingRule>,
     val records: List<BillRecord>,
-    val settings: CaptureSettings
+    val settings: CaptureSettings,
+    val productCosts: List<ProductCostRecord> = emptyList()
 )

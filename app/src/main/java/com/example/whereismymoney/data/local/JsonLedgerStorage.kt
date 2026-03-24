@@ -7,6 +7,7 @@ import com.example.whereismymoney.data.model.CaptureMode
 import com.example.whereismymoney.data.model.CaptureSettings
 import com.example.whereismymoney.data.model.ExpenseCategory
 import com.example.whereismymoney.data.model.LedgerSnapshot
+import com.example.whereismymoney.data.model.ProductCostRecord
 import com.example.whereismymoney.data.model.RecordRuleAction
 import org.json.JSONArray
 import org.json.JSONObject
@@ -39,24 +40,12 @@ class JsonLedgerStorage(private val context: Context) {
         return JSONObject()
             .put("categories", JSONArray().apply {
                 snapshot.categories.forEach { category ->
-                    put(
-                        JSONObject()
-                            .put("id", category.id)
-                            .put("name", category.name)
-                            .put("monthlyBudgetHint", category.monthlyBudgetHint?.toPlainString())
-                    )
+                    put(JSONObject().put("id", category.id).put("name", category.name).put("monthlyBudgetHint", category.monthlyBudgetHint?.toPlainString()))
                 }
             })
             .put("rules", JSONArray().apply {
                 snapshot.rules.forEach { rule ->
-                    put(
-                        JSONObject()
-                            .put("id", rule.id)
-                            .put("matcher", rule.matcher)
-                            .put("action", rule.action.name)
-                            .put("categoryId", rule.categoryId)
-                            .put("notes", rule.notes)
-                    )
+                    put(JSONObject().put("id", rule.id).put("matcher", rule.matcher).put("action", rule.action.name).put("categoryId", rule.categoryId).put("notes", rule.notes))
                 }
             })
             .put("records", JSONArray().apply {
@@ -73,6 +62,18 @@ class JsonLedgerStorage(private val context: Context) {
                             .put("autoCaptured", record.autoCaptured)
                             .put("needsReview", record.needsReview)
                             .put("rawText", record.rawText)
+                    )
+                }
+            })
+            .put("productCosts", JSONArray().apply {
+                snapshot.productCosts.forEach { item ->
+                    put(
+                        JSONObject()
+                            .put("id", item.id)
+                            .put("name", item.name)
+                            .put("totalPrice", item.totalPrice.toPlainString())
+                            .put("days", item.days)
+                            .put("createdAt", item.createdAt.toString())
                     )
                 }
             })
@@ -95,9 +96,7 @@ class JsonLedgerStorage(private val context: Context) {
             ExpenseCategory(
                 id = json.getString("id"),
                 name = json.getString("name"),
-                monthlyBudgetHint = json.optString("monthlyBudgetHint")
-                    .takeIf { it.isNotBlank() && it != "null" }
-                    ?.let(::BigDecimal)
+                monthlyBudgetHint = json.optString("monthlyBudgetHint").takeIf { it.isNotBlank() && it != "null" }?.let(::BigDecimal)
             )
         }
         val rules = root.getJSONArray("rules").toList { json ->
@@ -123,6 +122,15 @@ class JsonLedgerStorage(private val context: Context) {
                 rawText = json.optString("rawText")
             )
         }
+        val productCosts = root.optJSONArray("productCosts")?.toList { json ->
+            ProductCostRecord(
+                id = json.getString("id"),
+                name = json.getString("name"),
+                totalPrice = BigDecimal(json.getString("totalPrice")),
+                days = json.getInt("days"),
+                createdAt = LocalDateTime.parse(json.getString("createdAt"))
+            )
+        } ?: emptyList()
         val settingsJson = root.getJSONObject("settings")
         val settings = CaptureSettings(
             useAccessibilityService = settingsJson.optBoolean("useAccessibilityService", true),
@@ -131,26 +139,21 @@ class JsonLedgerStorage(private val context: Context) {
             aiEndpoint = settingsJson.optString("aiEndpoint"),
             aiApiKeyPlaceholder = settingsJson.optString("aiApiKeyPlaceholder"),
             reviewUnknownBills = settingsJson.optBoolean("reviewUnknownBills", true),
-            allowedPackageNames = settingsJson.optJSONArray("allowedPackageNames")?.toStringList()
-                ?: listOf("com.tencent.mm", "com.eg.android.AlipayGphone"),
+            allowedPackageNames = settingsJson.optJSONArray("allowedPackageNames")?.toStringList() ?: listOf("com.tencent.mm", "com.eg.android.AlipayGphone"),
             dedupeWindowMinutes = settingsJson.optInt("dedupeWindowMinutes", 2)
         )
-        return LedgerSnapshot(categories, rules, records, settings)
+        return LedgerSnapshot(categories, rules, records, settings, productCosts)
     }
 
     private fun <T> JSONArray.toList(mapper: (JSONObject) -> T): List<T> {
         return buildList {
-            for (index in 0 until length()) {
-                add(mapper(getJSONObject(index)))
-            }
+            for (index in 0 until length()) add(mapper(getJSONObject(index)))
         }
     }
 
     private fun JSONArray.toStringList(): List<String> {
         return buildList {
-            for (index in 0 until length()) {
-                add(getString(index))
-            }
+            for (index in 0 until length()) add(getString(index))
         }
     }
 }
