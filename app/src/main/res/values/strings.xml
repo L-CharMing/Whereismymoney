@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Where Is My Money</string>
+    <string name="accessibility_service_description">Detect payment success pages after user authorization.</string>
+</resources>
