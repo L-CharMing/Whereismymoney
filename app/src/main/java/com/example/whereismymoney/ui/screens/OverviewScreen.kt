@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
@@ -26,7 +25,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -117,8 +115,8 @@ fun OverviewScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("${state.selectedMonth.year}年${state.selectedMonth.monthValue}月总览", style = MaterialTheme.typography.headlineSmall)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        OutlinedButton(onClick = { viewModel.selectPreviousMonth() }, modifier = Modifier.weight(1f)) { Text("上个月") }
-                        OutlinedButton(onClick = { viewModel.selectNextMonth() }, modifier = Modifier.weight(1f)) { Text("下个月") }
+                        OutlinedButton(onClick = { viewModel.selectPreviousMonth() }, modifier = Modifier.width(140.dp)) { Text("上个月") }
+                        OutlinedButton(onClick = { viewModel.selectNextMonth() }, modifier = Modifier.width(140.dp)) { Text("下个月") }
                     }
                     OutlinedButton(onClick = viewModel::exportSelectedMonthCsv, modifier = Modifier.fillMaxWidth()) {
                         Text("导出当前月份 CSV")
@@ -291,10 +289,10 @@ private fun RecordEditorCard(
                 Text("来源：${record.source}")
                 Text("时间：${record.occurredAt}")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(onClick = onEditStart, modifier = Modifier.weight(1f)) {
+                    OutlinedButton(onClick = onEditStart, modifier = Modifier.width(120.dp)) {
                         Text("编辑")
                     }
-                    OutlinedButton(onClick = onDelete, modifier = Modifier.weight(1f)) {
+                    OutlinedButton(onClick = onDelete, modifier = Modifier.width(120.dp)) {
                         Text("删除")
                     }
                 }
@@ -305,10 +303,10 @@ private fun RecordEditorCard(
                 OutlinedTextField(value = editingAmount, onValueChange = onAmountChange, label = { Text("金额") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = editingCategoryId, onValueChange = onCategoryChange, label = { Text("分类ID") }, modifier = Modifier.fillMaxWidth())
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(onClick = onSave, modifier = Modifier.weight(1f)) {
+                    OutlinedButton(onClick = onSave, modifier = Modifier.width(120.dp)) {
                         Text("保存修改")
                     }
-                    OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) {
+                    OutlinedButton(onClick = onCancel, modifier = Modifier.width(120.dp)) {
                         Text("取消")
                     }
                 }
