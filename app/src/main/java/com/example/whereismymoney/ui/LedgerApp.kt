@@ -1,6 +1,7 @@
 package com.example.whereismymoney.ui
 
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -26,10 +27,11 @@ private enum class LedgerTab(val title: String) {
 fun LedgerApp(viewModel: LedgerViewModel) {
     var currentTab by remember { mutableStateOf(LedgerTab.HOME) }
     val state = viewModel.uiState
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
-            NavigationBar {
+            NavigationBar(modifier = Modifier.navigationBarsPadding()) {
                 LedgerTab.entries.forEach { tab ->
                     NavigationBarItem(
                         selected = currentTab == tab,
