@@ -100,7 +100,7 @@ fun OverviewScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(Color(0xFFF6FAFF), Color(0xFFEFF5FF))))
+            .background(brush = Brush.verticalGradient(colors = listOf(Color(0xFFF6FAFF), Color(0xFFEFF5FF))))
             .padding(paddingValues)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -129,14 +129,13 @@ fun OverviewScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel
                     } else {
                         state.monthlyBreakdown.forEachIndexed { index, row ->
                             val percent = (row.percentOfMonth * 100).roundToInt()
-                            val barBrush = Brush.horizontalGradient(
-                                listOf(
-                                    listOf(Color(0xFF9AD7FF), Color(0xFF5DA7FF)),
-                                    listOf(Color(0xFFAED8B3), Color(0xFF66BB6A)),
-                                    listOf(Color(0xFFFFD6A5), Color(0xFFFFA726)),
-                                    listOf(Color(0xFFE2C4FF), Color(0xFFAB79FF))
-                                ][index % 4]
-                            )
+                            val barColors = when (index % 4) {
+                                0 -> listOf(Color(0xFF9AD7FF), Color(0xFF5DA7FF))
+                                1 -> listOf(Color(0xFFAED8B3), Color(0xFF66BB6A))
+                                2 -> listOf(Color(0xFFFFD6A5), Color(0xFFFFA726))
+                                else -> listOf(Color(0xFFE2C4FF), Color(0xFFAB79FF))
+                            }
+                            val barBrush = Brush.horizontalGradient(colors = barColors)
                             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                     Text(row.categoryName, fontWeight = FontWeight.Medium)
@@ -147,14 +146,14 @@ fun OverviewScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel
                                         .fillMaxWidth()
                                         .height(14.dp)
                                         .clip(RoundedCornerShape(99.dp))
-                                        .background(Color.White.copy(alpha = 0.55f))
+                                        .background(color = Color.White.copy(alpha = 0.55f))
                                 ) {
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth(row.percentOfMonth.coerceIn(0f, 1f))
                                             .height(14.dp)
                                             .clip(RoundedCornerShape(99.dp))
-                                            .background(barBrush)
+                                            .background(brush = barBrush)
                                     )
                                 }
                             }
