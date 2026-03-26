@@ -1,14 +1,12 @@
 package com.example.whereismymoney.ui.screens
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -210,7 +208,7 @@ private fun DayRecordSection(day: LocalDate, records: List<BillRecord>) {
 }
 
 @Composable
-private fun GlassSurface(modifier: Modifier = Modifier, content: @Composable Column.() -> Unit) {
+private fun GlassSurface(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Box(
         modifier = modifier
             .shadow(12.dp, RoundedCornerShape(26.dp), ambientColor = Color(0x33577AFF), spotColor = Color(0x33577AFF))
