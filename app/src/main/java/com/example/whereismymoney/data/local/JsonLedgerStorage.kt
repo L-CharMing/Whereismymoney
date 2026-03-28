@@ -12,6 +12,7 @@ import com.example.whereismymoney.data.model.RecordRuleAction
 import org.json.JSONArray
 import org.json.JSONObject
 import java.math.BigDecimal
+import java.time.LocalDate
 import java.time.LocalDateTime
 
 class JsonLedgerStorage(private val context: Context) {
@@ -72,7 +73,7 @@ class JsonLedgerStorage(private val context: Context) {
                             .put("id", item.id)
                             .put("name", item.name)
                             .put("totalPrice", item.totalPrice.toPlainString())
-                            .put("days", item.days)
+                            .put("purchaseDate", item.purchaseDate.toString())
                             .put("createdAt", item.createdAt.toString())
                     )
                 }
@@ -123,11 +124,16 @@ class JsonLedgerStorage(private val context: Context) {
             )
         }
         val productCosts = root.optJSONArray("productCosts")?.toList { json ->
+            val purchaseDate = json.optString("purchaseDate").takeIf { it.isNotBlank() }?.let(LocalDate::parse)
+                ?: run {
+                    val oldDays = json.optInt("days", 1).coerceAtLeast(1)
+                    LocalDate.now().minusDays((oldDays - 1).toLong())
+                }
             ProductCostRecord(
                 id = json.getString("id"),
                 name = json.getString("name"),
                 totalPrice = BigDecimal(json.getString("totalPrice")),
-                days = json.getInt("days"),
+                purchaseDate = purchaseDate,
                 createdAt = LocalDateTime.parse(json.getString("createdAt"))
             )
         } ?: emptyList()

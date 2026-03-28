@@ -4,6 +4,7 @@ import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.YearMonth
+import java.time.temporal.ChronoUnit
 
 enum class CaptureMode {
     ACCESSIBILITY,
@@ -48,11 +49,14 @@ data class ProductCostRecord(
     val id: String,
     val name: String,
     val totalPrice: BigDecimal,
-    val days: Int,
+    val purchaseDate: LocalDate,
     val createdAt: LocalDateTime
 ) {
+    val ownedDays: Int
+        get() = ChronoUnit.DAYS.between(purchaseDate, LocalDate.now()).toInt().coerceAtLeast(1)
+
     val dailyPrice: BigDecimal
-        get() = if (days <= 0) BigDecimal.ZERO else totalPrice.divide(BigDecimal(days), 2, java.math.RoundingMode.HALF_UP)
+        get() = totalPrice.divide(BigDecimal(ownedDays), 2, java.math.RoundingMode.HALF_UP)
 }
 
 data class MonthlyCategorySummary(

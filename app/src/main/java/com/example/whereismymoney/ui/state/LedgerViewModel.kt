@@ -18,6 +18,7 @@ import com.example.whereismymoney.data.model.ProductCostRecord
 import com.example.whereismymoney.data.model.RecordRuleAction
 import com.example.whereismymoney.data.repository.InMemoryLedgerRepository
 import java.math.BigDecimal
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -47,15 +48,33 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
         persist(currentSnapshot().copy(records = listOf(record) + uiState.allRecords))
     }
 
-    fun addProductCost(name: String, totalPriceInput: String, daysInput: String) {
+    fun updateRecord(recordId: String, title: String, amountInput: String) {
+        val amount = amountInput.toBigDecimalOrNull() ?: return
+        val oldRecord = uiState.allRecords.firstOrNull { it.id == recordId } ?: return
+        val updated = currentRepository().updateRecord(
+            recordId = recordId,
+            title = title,
+            merchant = oldRecord.merchant,
+            amount = amount,
+            categoryId = oldRecord.categoryId
+        )
+        persist(currentSnapshot().copy(records = updated))
+    }
+
+    fun deleteRecord(recordId: String) {
+        val updated = currentRepository().deleteRecord(recordId)
+        persist(currentSnapshot().copy(records = updated))
+    }
+
+    fun addProductCost(name: String, totalPriceInput: String, purchaseDateInput: String) {
         val totalPrice = totalPriceInput.toBigDecimalOrNull() ?: return
-        val days = daysInput.toIntOrNull() ?: return
-        if (days <= 0 || name.isBlank()) return
+        val purchaseDate = runCatching { LocalDate.parse(purchaseDateInput) }.getOrNull() ?: return
+        if (name.isBlank()) return
         val record = ProductCostRecord(
             id = UUID.randomUUID().toString(),
             name = name,
             totalPrice = totalPrice,
-            days = days,
+            purchaseDate = purchaseDate,
             createdAt = LocalDateTime.now()
         )
         persist(currentSnapshot().copy(productCosts = listOf(record) + uiState.productCosts))
@@ -111,6 +130,10 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun selectNextMonth() {
         uiState = currentSnapshot().toUiState(captureManager.buildWirelessAdbHints(), uiState.selectedMonth.plusMonths(1), uiState.searchQuery, uiState.exportMessage)
+    }
+
+    fun selectMonth(month: YearMonth) {
+        uiState = currentSnapshot().toUiState(captureManager.buildWirelessAdbHints(), month, uiState.searchQuery, uiState.exportMessage)
     }
 
     fun exportSelectedMonthCsv() {
@@ -199,4 +222,4 @@ private fun LedgerSnapshot.toUiState(
     )
 }
 
-private fun String.csvEscape(): String = "\"${replace("\"", "\"\"")}\""
+private fun String.csvEscape(): String = "\"${replace("\"", "\"\"")}""

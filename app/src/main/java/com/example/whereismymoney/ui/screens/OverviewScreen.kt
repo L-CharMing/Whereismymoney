@@ -1,30 +1,28 @@
 package com.example.whereismymoney.ui.screens
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,28 +30,38 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.whereismymoney.data.model.BillRecord
 import com.example.whereismymoney.ui.state.LedgerUiState
 import com.example.whereismymoney.ui.state.LedgerViewModel
 import java.time.LocalDate
-import kotlin.math.roundToInt
+import java.time.YearMonth
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OverviewScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel: LedgerViewModel) {
     var manualDialogVisible by remember { mutableStateOf(false) }
     var amountInput by remember { mutableStateOf("") }
     var purposeInput by remember { mutableStateOf("") }
+    var editingRecord by remember { mutableStateOf<BillRecord?>(null) }
+    var showAnnualView by remember { mutableStateOf(false) }
+
+    if (showAnnualView) {
+        AnnualLedgerScreen(
+            records = state.allRecords,
+            selectedMonth = state.selectedMonth,
+            onBack = { showAnnualView = false },
+            onSelectMonth = {
+                viewModel.selectMonth(it)
+                showAnnualView = false
+            }
+        )
+        return
+    }
+
     val recordsByDay = remember(state.filteredRecords) {
-        state.filteredRecords
-            .groupBy { it.occurredAt.toLocalDate() }
-            .toList()
-            .sortedByDescending { it.first }
+        state.filteredRecords.groupBy { it.occurredAt.toLocalDate() }.toList().sortedByDescending { it.first }
     }
 
     if (manualDialogVisible) {
@@ -64,28 +72,48 @@ fun OverviewScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(value = amountInput, onValueChange = { amountInput = it }, label = { Text("金额") }, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = purposeInput, onValueChange = { purposeInput = it }, label = { Text("用途") }, modifier = Modifier.fillMaxWidth())
-                    Text("常用用途")
-                    Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("餐饮", "交通", "购物", "娱乐", "居住", "医疗").forEach { common ->
-                            OutlinedButton(onClick = { purposeInput = common }) { Text(common) }
-                        }
-                    }
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
-                    viewModel.addManualRecord(
-                        title = purposeInput.ifBlank { "手动记录" },
-                        merchant = "",
-                        amountInput = amountInput,
-                        categoryId = null
-                    )
+                    viewModel.addManualRecord(title = purposeInput.ifBlank { "手动记录" }, merchant = "", amountInput = amountInput, categoryId = null)
                     amountInput = ""
                     purposeInput = ""
                     manualDialogVisible = false
                 }) { Text("保存") }
             },
             dismissButton = { TextButton(onClick = { manualDialogVisible = false }) { Text("取消") } }
+        )
+    }
+
+    editingRecord?.let { record ->
+        var editTitle by remember(record.id) { mutableStateOf(record.title) }
+        var editAmount by remember(record.id) { mutableStateOf(record.amount.toPlainString()) }
+        AlertDialog(
+            onDismissRequest = { editingRecord = null },
+            title = { Text("编辑账单") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = editTitle, onValueChange = { editTitle = it }, label = { Text("用途") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = editAmount, onValueChange = { editAmount = it }, label = { Text("金额") }, modifier = Modifier.fillMaxWidth())
+                    Text("日期：${record.occurredAt.toLocalDate()}")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.updateRecord(record.id, editTitle, editAmount)
+                    editingRecord = null
+                }) { Text("保存") }
+            },
+            dismissButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = {
+                        viewModel.deleteRecord(record.id)
+                        editingRecord = null
+                    }) { Text("删除") }
+                    TextButton(onClick = { editingRecord = null }) { Text("取消") }
+                }
+            }
         )
     }
 
@@ -98,144 +126,120 @@ fun OverviewScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel
         )
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(brush = Brush.verticalGradient(colors = listOf(Color(0xFFF5FAFF), Color(0xFFEAF1FF))))
-            .padding(paddingValues)
-    ) {
+    Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item { MonthHeroCard(state = state, onPrev = viewModel::selectPreviousMonth, onNext = viewModel::selectNextMonth) }
-            item { StatisticsCard(state = state) }
-            item { Text("当月明细（按天）", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp)) }
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { showAnnualView = true }) {
+                            Text("${state.selectedMonth.year}年${state.selectedMonth.monthValue}月（点击查看年度账单）")
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            OutlinedButton(onClick = viewModel::selectPreviousMonth) { Text("上个月") }
+                            OutlinedButton(onClick = viewModel::selectNextMonth) { Text("下个月") }
+                        }
+                        Text("当月总支出：¥${state.thisMonthTotal}", style = MaterialTheme.typography.titleMedium)
+                        Text("主要支出用途：${state.thisMonthTopCategory}")
+                    }
+                }
+            }
+
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("当月统计", style = MaterialTheme.typography.titleMedium)
+                        state.monthlyBreakdown.forEach { row ->
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(row.categoryName)
+                                Text("¥${row.totalAmount}")
+                            }
+                        }
+                    }
+                }
+            }
+
+            item { Text("当月明细（点按可编辑）", style = MaterialTheme.typography.titleMedium) }
             items(recordsByDay, key = { it.first.toString() }) { group ->
-                DayRecordSection(group.first, group.second)
+                DayRecordSection(day = group.first, records = group.second, onRecordClick = { editingRecord = it })
             }
             item { Box(modifier = Modifier.height(88.dp)) }
         }
 
-        GlassFab(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(20.dp),
-            onClick = { manualDialogVisible = true }
-        )
-    }
-}
-
-@Composable
-private fun MonthHeroCard(state: LedgerUiState, onPrev: () -> Unit, onNext: () -> Unit) {
-    GlassSurface(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("${state.selectedMonth.year}年${state.selectedMonth.monthValue}月", style = MaterialTheme.typography.headlineSmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = onPrev) { Text("‹") }
-                Text("月度总览", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                OutlinedButton(onClick = onNext) { Text("›") }
-            }
-            Text("当月总支出", color = Color(0xFF5F6E8C))
-            Text("¥${state.thisMonthTotal}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text("主要支出：${state.thisMonthTopCategory}", color = Color(0xFF5F6E8C))
+        FloatingActionButton(
+            onClick = { manualDialogVisible = true },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp)
+        ) {
+            Text("记")
         }
     }
 }
 
 @Composable
-private fun StatisticsCard(state: LedgerUiState) {
-    GlassSurface(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("当月统计", style = MaterialTheme.typography.titleMedium)
-            if (state.monthlyBreakdown.isEmpty()) {
-                Text("暂无统计数据")
-            } else {
-                state.monthlyBreakdown.forEachIndexed { index, row ->
-                    val percent = (row.percentOfMonth * 100).roundToInt()
-                    val barColors = when (index % 4) {
-                        0 -> listOf(Color(0xFFAAF1FF), Color(0xFF64C9FF))
-                        1 -> listOf(Color(0xFFC7FFD8), Color(0xFF6EDB9A))
-                        2 -> listOf(Color(0xFFFFE1B8), Color(0xFFFFB869))
-                        else -> listOf(Color(0xFFE7D2FF), Color(0xFFBE9BFF))
-                    }
-                    val barBrush = Brush.horizontalGradient(colors = barColors)
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(row.categoryName, fontWeight = FontWeight.Medium)
-                            Text("¥${row.totalAmount} · ${percent}%")
-                        }
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(14.dp)
-                                .clip(RoundedCornerShape(99.dp))
-                                .background(color = Color.White.copy(alpha = 0.55f))
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth(row.percentOfMonth.coerceIn(0f, 1f))
-                                    .height(14.dp)
-                                    .clip(RoundedCornerShape(99.dp))
-                                    .background(brush = barBrush)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DayRecordSection(day: LocalDate, records: List<BillRecord>) {
-    GlassSurface(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+private fun DayRecordSection(day: LocalDate, records: List<BillRecord>, onRecordClick: (BillRecord) -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("${day.monthValue}月${day.dayOfMonth}日", style = MaterialTheme.typography.titleMedium)
             records.forEach { record ->
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(record.title, style = MaterialTheme.typography.bodyLarge)
-                        Text(record.source.name, style = MaterialTheme.typography.bodySmall, color = Color(0xFF7A859C))
+                Card(onClick = { onRecordClick(record) }, modifier = Modifier.fillMaxWidth()) {
+                    Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(record.title, style = MaterialTheme.typography.bodyLarge)
+                            Text(record.occurredAt.toLocalTime().toString(), style = MaterialTheme.typography.bodySmall)
+                        }
+                        Text("¥${record.amount}", fontWeight = FontWeight.SemiBold)
                     }
-                    Text("¥${record.amount}", fontWeight = FontWeight.SemiBold)
                 }
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun GlassSurface(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Box(
-        modifier = modifier
-            .shadow(12.dp, RoundedCornerShape(26.dp), ambientColor = Color(0x33577AFF), spotColor = Color(0x33577AFF))
-            .clip(RoundedCornerShape(26.dp))
-            .background(
-                brush = Brush.verticalGradient(colors = listOf(Color.White.copy(alpha = 0.68f), Color.White.copy(alpha = 0.4f)))
-            )
-            .border(1.dp, Color.White.copy(alpha = 0.55f), RoundedCornerShape(26.dp))
-            .padding(16.dp)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
+private fun AnnualLedgerScreen(
+    records: List<BillRecord>,
+    selectedMonth: YearMonth,
+    onBack: () -> Unit,
+    onSelectMonth: (YearMonth) -> Unit
+) {
+    val year = selectedMonth.year
+    val monthTotals = remember(records, year) {
+        records
+            .filter { it.occurredAt.year == year }
+            .groupBy { YearMonth.from(it.occurredAt) }
+            .map { (month, monthRecords) ->
+                month to monthRecords.fold(java.math.BigDecimal.ZERO) { acc, item -> acc + item.amount }
+            }
+            .sortedByDescending { it.first }
     }
-}
 
-@Composable
-private fun GlassFab(modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Box(
-        modifier = modifier
-            .size(58.dp)
-            .shadow(14.dp, CircleShape, ambientColor = Color(0x446A90FF), spotColor = Color(0x446A90FF))
-            .clip(CircleShape)
-            .background(brush = Brush.verticalGradient(colors = listOf(Color.White.copy(alpha = 0.8f), Color(0xFFCFE3FF).copy(alpha = 0.85f))))
-            .border(1.dp, Color.White.copy(alpha = 0.75f), CircleShape),
-        contentAlignment = Alignment.Center
-    ) {
-        TextButton(onClick = onClick) {
-            Text("＋", style = MaterialTheme.typography.headlineSmall, color = Color(0xFF365DA8))
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("${year}年度账单") },
+                navigationIcon = { TextButton(onClick = onBack) { Text("返回") } }
+            )
+        }
+    ) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(innerPadding).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            if (monthTotals.isEmpty()) {
+                item { Text("暂无年度账单数据") }
+            } else {
+                items(monthTotals, key = { it.first.toString() }) { row ->
+                    Card(onClick = { onSelectMonth(row.first) }, modifier = Modifier.fillMaxWidth()) {
+                        Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("${row.first.monthValue}月")
+                            Text("¥${row.second}", fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
         }
     }
 }
