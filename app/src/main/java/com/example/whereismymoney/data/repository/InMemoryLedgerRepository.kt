@@ -51,13 +51,13 @@ class InMemoryLedgerRepository(
         )
     }
 
-    fun addManualRecord(title: String, merchant: String, amount: BigDecimal, categoryId: String?): BillRecord {
+    fun addManualRecord(title: String, merchant: String, amount: BigDecimal, categoryId: String?, occurredAt: LocalDateTime = LocalDateTime.now()): BillRecord {
         return BillRecord(
             id = UUID.randomUUID().toString(),
             title = title,
             amount = amount,
             merchant = merchant,
-            occurredAt = LocalDateTime.now(),
+            occurredAt = occurredAt,
             source = CaptureMode.MANUAL,
             categoryId = categoryId,
             autoCaptured = false,

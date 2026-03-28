@@ -97,19 +97,35 @@ fun ProductCostScreen(state: LedgerUiState, paddingValues: PaddingValues, viewMo
 
 @Composable
 private fun BillImportDialog(bills: List<BillRecord>, onDismiss: () -> Unit, onImport: (BillRecord) -> Unit) {
+    var keyword by remember { mutableStateOf("") }
+    val filtered = remember(bills, keyword) {
+        val key = keyword.trim()
+        if (key.isBlank()) bills.take(50) else bills.filter {
+            it.title.contains(key, ignoreCase = true) || it.merchant.contains(key, ignoreCase = true)
+        }.take(50)
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("选择一条账单导入") },
         text = {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(bills.take(30), key = { it.id }) { bill ->
-                    Card(onClick = { onImport(bill) }, modifier = Modifier.fillMaxWidth()) {
-                        Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Column {
-                                Text(bill.title)
-                                Text(bill.occurredAt.toLocalDate().toString(), style = MaterialTheme.typography.bodySmall)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = keyword,
+                    onValueChange = { keyword = it },
+                    label = { Text("搜索标题/商户") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(filtered, key = { it.id }) { bill ->
+                        Card(onClick = { onImport(bill) }, modifier = Modifier.fillMaxWidth()) {
+                            Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Column {
+                                    Text(bill.title)
+                                    Text(bill.occurredAt.toLocalDate().toString(), style = MaterialTheme.typography.bodySmall)
+                                }
+                                Text("¥${bill.amount}")
                             }
-                            Text("¥${bill.amount}")
                         }
                     }
                 }

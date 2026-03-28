@@ -36,14 +36,16 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
         uiState = snapshot.toUiState(captureManager.buildWirelessAdbHints())
     }
 
-    fun addManualRecord(title: String, merchant: String, amountInput: String, categoryId: String?) {
+    fun addManualRecord(title: String, merchant: String, amountInput: String, categoryId: String?, occurredDateInput: String? = null) {
         val amount = amountInput.toBigDecimalOrNull() ?: return
         val repository = currentRepository()
+        val occurredAt = occurredDateInput?.let { runCatching { LocalDate.parse(it).atStartOfDay() }.getOrNull() } ?: LocalDateTime.now()
         val record = repository.addManualRecord(
             title = title.ifBlank { "手动记录" },
             merchant = merchant.ifBlank { "" },
             amount = amount,
-            categoryId = categoryId
+            categoryId = categoryId,
+            occurredAt = occurredAt
         )
         persist(currentSnapshot().copy(records = listOf(record) + uiState.allRecords))
     }
@@ -78,6 +80,16 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
             createdAt = LocalDateTime.now()
         )
         persist(currentSnapshot().copy(productCosts = listOf(record) + uiState.productCosts))
+    }
+
+
+    fun importRecordToProduct(recordId: String) {
+        val record = uiState.allRecords.firstOrNull { it.id == recordId } ?: return
+        addProductCost(
+            name = record.title,
+            totalPriceInput = record.amount.toPlainString(),
+            purchaseDateInput = record.occurredAt.toLocalDate().toString()
+        )
     }
 
     fun addAiVoiceBill(voiceText: String) {

@@ -1,19 +1,10 @@
 package com.example.whereismymoney.ui.screens
 
+import android.app.DatePickerDialog
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -23,18 +14,25 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import com.example.whereismymoney.data.model.BillRecord
 import com.example.whereismymoney.ui.state.LedgerUiState
 import com.example.whereismymoney.ui.state.LedgerViewModel
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OverviewScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel: LedgerViewModel) {
+    val context = LocalContext.current
+    val dateFormatter = remember { DateTimeFormatter.ofPattern("yyyy-MM-dd") }
+
     var manualDialogVisible by remember { mutableStateOf(false) }
     var amountInput by remember { mutableStateOf("") }
     var purposeInput by remember { mutableStateOf("") }
+    var occurredDate by remember { mutableStateOf(LocalDate.now()) }
+
     var editingRecord by remember { mutableStateOf<BillRecord?>(null) }
     var showAnnualView by remember { mutableStateOf(false) }
 
@@ -63,13 +61,34 @@ fun OverviewScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(value = amountInput, onValueChange = { amountInput = it }, label = { Text("金额") }, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = purposeInput, onValueChange = { purposeInput = it }, label = { Text("用途") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedButton(
+                        onClick = {
+                            DatePickerDialog(
+                                context,
+                                { _, year, month, dayOfMonth -> occurredDate = LocalDate.of(year, month + 1, dayOfMonth) },
+                                occurredDate.year,
+                                occurredDate.monthValue - 1,
+                                occurredDate.dayOfMonth
+                            ).show()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("记账日期：${occurredDate.format(dateFormatter)}")
+                    }
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
-                    viewModel.addManualRecord(title = purposeInput.ifBlank { "手动记录" }, merchant = "", amountInput = amountInput, categoryId = null)
+                    viewModel.addManualRecord(
+                        title = purposeInput.ifBlank { "手动记录" },
+                        merchant = "",
+                        amountInput = amountInput,
+                        categoryId = null,
+                        occurredDateInput = occurredDate.format(dateFormatter)
+                    )
                     amountInput = ""
                     purposeInput = ""
+                    occurredDate = LocalDate.now()
                     manualDialogVisible = false
                 }) { Text("保存") }
             },
@@ -99,6 +118,10 @@ fun OverviewScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel
             dismissButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = {
+                        viewModel.importRecordToProduct(record.id)
+                        editingRecord = null
+                    }) { Text("导入日均") }
+                    TextButton(onClick = {
                         viewModel.deleteRecord(record.id)
                         editingRecord = null
                     }) { Text("删除") }
@@ -123,23 +146,29 @@ fun OverviewScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                Card(modifier = Modifier.fillMaxWidth()) {
+                ElevatedCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+                ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         TextButton(onClick = { showAnnualView = true }) {
                             Text("${state.selectedMonth.year}年${state.selectedMonth.monthValue}月（点击查看年度账单）")
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                            OutlinedButton(onClick = viewModel::selectPreviousMonth) { Text("上个月") }
-                            OutlinedButton(onClick = viewModel::selectNextMonth) { Text("下个月") }
+                            FilledTonalButton(onClick = viewModel::selectPreviousMonth, modifier = Modifier.weight(1f)) { Text("上个月") }
+                            FilledTonalButton(onClick = viewModel::selectNextMonth, modifier = Modifier.weight(1f)) { Text("下个月") }
                         }
                         Text("当月总支出：¥${state.thisMonthTotal}", style = MaterialTheme.typography.titleMedium)
-                        Text("主要支出用途：${state.thisMonthTopCategory}")
+                        Text("主要支出用途：${state.thisMonthTopCategory}", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
 
             item {
-                Card(modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+                ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text("当月统计", style = MaterialTheme.typography.titleMedium)
                         state.monthlyBreakdown.forEach { row ->
@@ -147,6 +176,11 @@ fun OverviewScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel
                                 Text(row.categoryName)
                                 Text("¥${row.totalAmount}")
                             }
+                            LinearProgressIndicator(
+                                progress = { row.percentOfMonth.coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxWidth(),
+                                color = MaterialTheme.colorScheme.primary
+                            )
                         }
                     }
                 }
@@ -161,7 +195,8 @@ fun OverviewScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel
 
         FloatingActionButton(
             onClick = { manualDialogVisible = true },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp)
+            modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp),
+            containerColor = MaterialTheme.colorScheme.primaryContainer
         ) {
             Text("记")
         }
@@ -170,7 +205,10 @@ fun OverviewScreen(state: LedgerUiState, paddingValues: PaddingValues, viewModel
 
 @Composable
 private fun DayRecordSection(day: LocalDate, records: List<BillRecord>, onRecordClick: (BillRecord) -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+    ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("${day.monthValue}月${day.dayOfMonth}日", style = MaterialTheme.typography.titleMedium)
             records.forEach { record ->
