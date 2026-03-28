@@ -222,4 +222,4 @@ private fun LedgerSnapshot.toUiState(
     )
 }
 
-private fun String.csvEscape(): String = "\"${replace("\"", "\"\"")}""
+private fun String.csvEscape(): String = "\"${replace("\"", "\"\"")}\""
