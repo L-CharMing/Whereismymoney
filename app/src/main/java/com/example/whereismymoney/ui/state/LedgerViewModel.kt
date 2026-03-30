@@ -83,6 +83,20 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
 
+
+    fun updateProductCost(recordId: String, name: String, totalPriceInput: String, purchaseDateInput: String) {
+        val totalPrice = totalPriceInput.toBigDecimalOrNull() ?: return
+        val purchaseDate = runCatching { LocalDate.parse(purchaseDateInput) }.getOrNull() ?: return
+        val updated = uiState.productCosts.map { item ->
+            if (item.id == recordId) item.copy(name = name.ifBlank { item.name }, totalPrice = totalPrice, purchaseDate = purchaseDate) else item
+        }
+        persist(currentSnapshot().copy(productCosts = updated))
+    }
+
+    fun deleteProductCost(recordId: String) {
+        persist(currentSnapshot().copy(productCosts = uiState.productCosts.filterNot { it.id == recordId }))
+    }
+
     fun importRecordToProduct(recordId: String) {
         val record = uiState.allRecords.firstOrNull { it.id == recordId } ?: return
         addProductCost(

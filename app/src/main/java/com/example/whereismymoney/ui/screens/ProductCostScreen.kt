@@ -11,6 +11,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -25,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.whereismymoney.data.model.BillRecord
+import com.example.whereismymoney.data.model.ProductCostRecord
 import com.example.whereismymoney.ui.state.LedgerUiState
 import com.example.whereismymoney.ui.state.LedgerViewModel
 
@@ -34,6 +38,7 @@ fun ProductCostScreen(state: LedgerUiState, paddingValues: PaddingValues, viewMo
     var totalPrice by remember { mutableStateOf("") }
     var purchaseDate by remember { mutableStateOf("") }
     var importDialogVisible by remember { mutableStateOf(false) }
+    var editingItem by remember { mutableStateOf<ProductCostRecord?>(null) }
 
     if (importDialogVisible) {
         BillImportDialog(
@@ -48,6 +53,38 @@ fun ProductCostScreen(state: LedgerUiState, paddingValues: PaddingValues, viewMo
         )
     }
 
+    editingItem?.let { item ->
+        var editName by remember(item.id) { mutableStateOf(item.name) }
+        var editPrice by remember(item.id) { mutableStateOf(item.totalPrice.toPlainString()) }
+        var editDate by remember(item.id) { mutableStateOf(item.purchaseDate.toString()) }
+        AlertDialog(
+            onDismissRequest = { editingItem = null },
+            title = { Text("编辑日均产品") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = editName, onValueChange = { editName = it }, label = { Text("产品名称") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = editPrice, onValueChange = { editPrice = it }, label = { Text("总金额") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = editDate, onValueChange = { editDate = it }, label = { Text("购买日期（yyyy-MM-dd）") }, modifier = Modifier.fillMaxWidth())
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.updateProductCost(item.id, editName, editPrice, editDate)
+                    editingItem = null
+                }) { Text("保存") }
+            },
+            dismissButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = {
+                        viewModel.deleteProductCost(item.id)
+                        editingItem = null
+                    }) { Text("删除") }
+                    TextButton(onClick = { editingItem = null }) { Text("取消") }
+                }
+            }
+        )
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -56,17 +93,20 @@ fun ProductCostScreen(state: LedgerUiState, paddingValues: PaddingValues, viewMo
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Card(modifier = Modifier.fillMaxWidth()) {
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+            ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("产品日均成本", style = MaterialTheme.typography.headlineSmall)
                     Text("输入产品名称、总金额、购买日期（yyyy-MM-dd），系统自动计算持有天数与日均花费。")
-                    OutlinedButton(onClick = { importDialogVisible = true }, modifier = Modifier.fillMaxWidth()) {
+                    FilledTonalButton(onClick = { importDialogVisible = true }, modifier = Modifier.fillMaxWidth()) {
                         Text("从首页账单导入")
                     }
                     OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("产品名称") }, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = totalPrice, onValueChange = { totalPrice = it }, label = { Text("总金额") }, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = purchaseDate, onValueChange = { purchaseDate = it }, label = { Text("购买日期（yyyy-MM-dd）") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedButton(
+                    FilledTonalButton(
                         onClick = {
                             viewModel.addProductCost(name, totalPrice, purchaseDate)
                             name = ""
@@ -81,14 +121,22 @@ fun ProductCostScreen(state: LedgerUiState, paddingValues: PaddingValues, viewMo
             }
         }
 
+        item { Text("已记录产品（点按可编辑）", style = MaterialTheme.typography.titleMedium) }
         items(state.productCosts, key = { it.id }) { item ->
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { editingItem = item },
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(item.name, style = MaterialTheme.typography.titleMedium)
-                    Text("金额：¥${item.totalPrice}")
+                    Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                        Text("金额：¥${item.totalPrice}")
+                        Text("日均：¥${item.dailyPrice}", fontWeight = FontWeight.SemiBold)
+                    }
                     Text("购买日期：${item.purchaseDate}")
                     Text("已持有：${item.ownedDays} 天")
-                    Text("日均花费：¥${item.dailyPrice}", fontWeight = FontWeight.SemiBold)
+                    Text("点击卡片可编辑/删除", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
